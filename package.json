@@ -1,0 +1,16 @@
+{
+  "name": "basic-knex-with-express",
+  "version": "1.0.0",
+  "description": "basic express js app using knex",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Joey Killam",
+  "license": "ISC",
+  "dependencies": {
+    "express": "4.17.1",
+    "knex": "0.19.4",
+    "sqlite3": "4.1.0"
+  }
+}
