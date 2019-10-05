@@ -4,14 +4,14 @@ const mustache = require('mustache')
 const express = require('express')
 var app = express()
 
-// this links to the knexfile to select different db configurations
-const dbConfigs = require('./knexfile.js')
-
-// selection development config from the knexfile
-const db = require('knex')(dbConfigs.development)
+const log = require('./src/logging.js')
+const {createCohort, getAllCohorts, getOneCohort} = require('./src/db/cohorts.js')
 
 // set the port to listen on 
 const port = 3000
+
+// ---------------------------------------------------------
+// Express.js Endpoints
 
 // loads the template pages into variables as a string
 const homepageTemplate = fs.readFileSync('./templates/homepage.html', 'utf8')
@@ -30,23 +30,34 @@ app.get('/', function (req, res) {
     })
 })
 
+
+function slugify (str) {
+    return str.toLowerCase().replace(/\s+/g, '-')
+}
+
 // post request
 app.post('/cohorts', function(req, res) {
-    // console.log('here is what you sent in post request')
-    // console.log(req.params)
-    // console.log(req.body)
-    // res.send('you tried to make a post request')
+    const cohortTitle = req.body.title
+    let slug = req.body.slug
 
-    // TODO: Make a success page template 
-    // ~~~~~~~~~~~~~~~~~~~~~~~DONE
-    createCohort(req.body)
+    if (slug === '') {
+        slug = slugify(cohortTitle)
+    }
+
+    const newCohort = {
+        title: cohortTitle,
+        slug: slug,
+        startDate: req.body.startDate,
+        endDate: req.body.endDate
+    }
+
+    createCohort(newCohort)
         .then(function() {
-            // res.send('hopefully created a cohort <a href="/">go home</a>')
             res.send(mustache.render(successTemplate, {
-                newCohortName: req.body.title, 
-                newCohortSlug: req.body.slug
+                newCohortName: cohortTitle, 
+                newCohortSlug: slug
             }))
-            console.log('created a cohort')
+            log.info('created a cohort')
         })
         .catch(function () {
             res.status(500).send('something went wrong')
@@ -55,8 +66,6 @@ app.post('/cohorts', function(req, res) {
 
 // listens for requests for a particular cohort slug,
 // then renders the data as a JSON string
-// TODO: Make a cohorts page template 
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~DONE
 app.get('/cohorts/:slug', function (req, res) {
     
     getOneCohort(req.params.slug)
@@ -77,44 +86,21 @@ app.get('/cohorts/:slug', function (req, res) {
             cohortStartDate: cohort.startDate,
             cohortEndDate: cohort.endDate
         }))
-        // res.send('<pre>' + JSON.stringify(cohort) + '</pre>')
     })
     .catch(function(err){
-        console.log('uh-oh did not find cohort')
-        console.log(err)
+        log.error('uh-oh did not find cohort')
+        log.error(err)
         res.status(404).send('cohort not found :(')
     })
 })
 
 // this activates listening on the defined port
 app.listen(port, function () { 
-    console.log('listening on port ' + port)
+    log.info('listening on port ' + port + ' 🤖')
 })
 
-// this is storing a basic SQL query in a variable to be used elsewhere
-const getAllCohortsQuery = `
-    SELECT *
-    FROM Cohorts
-`
-// this returns all the cohorts from the db using a raw SQL string 
-// which is stored in the getAllCohortsQuery variable
-
-function getAllCohorts () {
-    return db.raw(getAllCohortsQuery)
-}
-
-// this function pulls one cohort based on the slug
-// which is supplied as a function parameter
-function getOneCohort (slug) {
-    return db.raw("SELECT * FROM Cohorts WHERE slug = ?", [slug])
-        .then(function(results) {
-            if (results.length !== 1) {
-                throw null
-            } else {
-                return results[0]
-            }
-        })
-}
+// ---------------------------------------------------------
+// HTML rendering
 
 // takes the cohort slug and renders it into a link
 function renderCohort (cohort) {
@@ -128,8 +114,4 @@ function renderAllCohorts (allCohorts) {
     return '<ul>' + allCohorts.map(renderCohort).join('') + '</ul>'
 }
 
-// SQL query to insert new cohort from a form submission
-// this currently defaults to TRUE for isActive
-function createCohort (cohort) {
-    return db.raw('INSERT INTO Cohorts (title, slug, isActive, startDate, endDate) VALUES (?, ?, true, ?, ?)', [cohort.title, cohort.slug, cohort.startDate, cohort.endDate])
-}
+
