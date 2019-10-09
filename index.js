@@ -1,3 +1,6 @@
+// --------------------------------------------------------
+// Express, Mustache, dotenv configuration
+require('dotenv').config()
 const fs = require('fs')
 const mustache = require('mustache')
 
@@ -7,8 +10,11 @@ var app = express()
 const log = require('./src/logging.js')
 const {createCohort, getAllCohorts, getOneCohort} = require('./src/db/cohorts.js')
 
+// this serves the defined folder and files within to a browser
+app.use(express.static('public'))
+
 // set the port to listen on 
-const port = 3000
+const port = process.env.PORT
 
 // ---------------------------------------------------------
 // Express.js Endpoints
@@ -30,7 +36,7 @@ app.get('/', function (req, res) {
     })
 })
 
-
+// function to create a slug from the cohort name
 function slugify (str) {
     return str.toLowerCase().replace(/\s+/g, '-')
 }
@@ -114,4 +120,57 @@ function renderAllCohorts (allCohorts) {
     return '<ul>' + allCohorts.map(renderCohort).join('') + '</ul>'
 }
 
+// ---------------------------------------------------------
+// Passport Configuration
 
+const passport = require('passport')
+app.use(passport.initialize())
+app.use(passport.session())
+
+// TODO: ADD TEMPLATES HERE
+app.get('/success', (req, res) => res.send("You have successfully logged in"))
+app.get('/error', (req, res) => res.send("Error logging in"))
+
+// this is invoked on authorization and serializes the user instance 
+// and stores it in the session via cookie
+passport.serializeUser(function(user, cb) {
+    cb(null, user)
+})
+
+// invoked every subsequent request to deserialize the instance, 
+// providing it the unique cookie identifier as a credential
+passport.deserializeUser(function(obj, cb) {
+    cb(null, obj)
+})
+
+// ---------------------------------------------------------
+// Facebook Auth Configuration
+
+const FacebookStrategy = require('passport-facebook').Strategy
+
+const FACEBOOK_APP_ID = process.env.FACEBOOK_APP_ID
+const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET
+
+
+passport.use(new FacebookStrategy ({
+    clientID: FACEBOOK_APP_ID,
+    clientSecret: FACEBOOK_APP_SECRET,
+    callbackURL: '/auth/facebook/callback'
+    },
+    function(accessToken, refreshToken, profile, cb) {
+        return cb(null, profile)
+    }
+))
+
+app.get('/auth/facebook',
+    passport.authenticate('facebook')
+)
+
+app.get('/auth/facebook/callback', 
+    passport.authenticate('facebook', {
+        failureRedirect: '/error'
+    }), 
+    function(req, res) {
+        res.redirect('/success')
+    }
+)
